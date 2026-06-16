@@ -1,2 +1,47 @@
-# fornorthwood
-For Northwood! is a solitaire trick taking board game which I think it would be easy to implement for web app. Just for self use
+# For Northwood! — 솔로 트릭테이킹 웹앱
+
+[For Northwood!](https://boardgamegeek.com/boardgame/338134) 솔로 트릭테이킹 보드게임의
+비공식 폰 웹앱(PWA). 빌드 도구 없이 순수 HTML/CSS/JS 정적 파일로 동작합니다.
+
+## 실행
+정적 서버로 열기만 하면 됩니다.
+
+```bash
+python3 -m http.server 8099
+# 브라우저에서 http://localhost:8099
+```
+
+또는 GitHub Pages에 그대로 배포 가능 (정적 사이트). 폰 브라우저에서 "홈 화면에 추가"하면
+앱처럼 전체화면/오프라인으로 실행됩니다.
+
+## 구현된 것 (1단계: 플레이 가능한 핵심)
+- 입문/풀 게임 모드, 난이도(Bronze/Silver/Gold)
+- 8개 영지, 목표 점수, 별(승점) — 보드 표시
+- 통치자 발언 공개 → 손패에서 응답 (follow suit 강제, 득점 판정 자동)
+- 점수/덱/버림 더미 추적, 방문 종료 판정(정확히 목표 점수면 우호)
+- 우호 통치자를 동맹 대역으로 데려오기
+- **특수 카드(능력) 시스템** — 데이터 중심:
+  - 동맹/통치자 능력을 방문당 1회 사용 (대화 발언 전, 대화당 1개)
+  - 능력 텍스트를 보여주고 **뽑기/버리기 도구로 직접 실행** → 정확한 능력 코드가
+    없어도 모든 특수 카드가 즉시 작동
+  - 자동 실행 가능한 능력은 코드로 처리 (예: Fox = 2장 뽑고 2장 버리기)
+- 최종 승점 집계 및 승패 판정
+- PWA(오프라인 캐시 + 설치)
+
+## 파일 구조
+```
+index.html              화면 진입점
+css/styles.css          모바일 우선 스타일
+js/data.js              카드·영지·캐릭터 능력 데이터  ← 능력 텍스트 채우는 곳
+js/engine.js            게임 규칙/상태 (순수 로직)
+js/ui.js                렌더링 + 상호작용
+js/app.js               부트스트랩 + 서비스워커 등록
+manifest.webmanifest    PWA 매니페스트
+sw.js                   오프라인 캐시
+```
+
+## 다음 단계 (함께 채울 것)
+룰북에는 각 캐릭터 카드의 **구체적 능력 텍스트가 없습니다**(실제 카드에 인쇄됨).
+`js/data.js`의 `CHARACTERS`에 `placeholder: true`로 표시된 항목들이 임시값이니,
+실제 카드 텍스트로 교체하면 됩니다. 그러면 화면에 정확한 설명이 표시되고,
+원하면 자동 실행 효과(`auto`)도 연결할 수 있습니다.
