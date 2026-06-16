@@ -212,6 +212,64 @@ export function canUseAbility(state, slotIndex) {
   return slot && !slot.exhausted;
 }
 
+// ===== 능력 단계(step) 레지스트리 =====
+// 새 능력 동작이 필요하면 여기에 타입 하나만 추가하면 됨.
+//   auto: true  → 즉시 실행 (run)
+//   auto: false → 플레이어 입력 필요 (prompt 로 요구사항 알리고, resolve 로 처리)
+const STEP_TYPES = {
+  // 덱에서 n장 뽑기
+  draw: {
+    auto: true,
+    run(state, step) { manualDraw(state, step.n ?? 1); },
+    describe: (s) => `덱에서 ${s.n ?? 1}장 뽑기`,
+  },
+  // 손패에서 n장 골라 버리기 (조건 가능)
+  discard: {
+    auto: false,
+    prompt(step) {
+      return {
+        action: 'select',
+        min: step.min ?? step.n ?? 1,
+        max: step.max ?? step.n ?? 1,
+        constraint: step.constraint || null,
+        then: 'discard',
+        text: step.text || `버릴 카드 ${stepCountLabel(step)}장 선택`,
+      };
+    },
+    resolve(state, step, sel) { manualDiscard(state, sel); },
+  },
+  // 안내만
+  message: {
+    auto: true,
+    run() {},
+    describe: (s) => s.text || '',
+  },
+};
+
+function stepCountLabel(step) {
+  const min = step.min ?? step.n ?? 1;
+  const max = step.max ?? step.n ?? 1;
+  return min === max ? `${min}` : `${min}~${max}`;
+}
+
+// 선택한 카드들이 단계 제약을 만족하는지
+export function checkConstraint(constraint, cards) {
+  if (!constraint) return { ok: true };
+  if (constraint.sumEquals != null) {
+    const sum = cards.reduce((a, c) => a + c.value, 0);
+    return { ok: sum === constraint.sumEquals, reason: `합이 ${constraint.sumEquals}가 되어야 함 (현재 ${sum})` };
+  }
+  if (constraint.sameSuit) {
+    const ok = cards.length === 0 || cards.every((c) => c.suit === cards[0].suit);
+    return { ok, reason: '같은 무늬여야 함' };
+  }
+  if (constraint.suit) {
+    const ok = cards.every((c) => c.suit === constraint.suit);
+    return { ok, reason: `${SUITS[constraint.suit].ko} 무늬여야 함` };
+  }
+  return { ok: true };
+}
+
 export function activateAbility(state, slotIndex) {
   if (!canUseAbility(state, slotIndex)) return state;
   const v = state.visit;
@@ -220,19 +278,71 @@ export function activateAbility(state, slotIndex) {
   v.abilityUsedThisDialogue = true;
   const card = activeCardOfSlot(slot);
   state.log.push(`능력 사용: ${card.name} — ${card.ability.text}`);
-  // 자동 효과가 있으면 실행 (수동 도구로도 보정 가능)
-  if (card.ability.auto) runAutoEffect(state, card.ability.auto);
+  startAbilityRun(state, slotIndex);
   return state;
 }
 
-function runAutoEffect(state, key) {
+// 능력 실행 시작: effect 가 있으면 단계 런타임, 없으면 수동(manual) 모드
+function startAbilityRun(state, slotIndex) {
   const v = state.visit;
-  const [op, ...args] = key.split(':');
-  const n = args.map(Number);
-  if (op === 'draw') manualDraw(state, n[0]);
-  else if (op === 'drawThenDiscard') { manualDraw(state, n[0]); /* 버리기는 수동 선택 */ }
-  // discardThenDraw 등은 수동 선택 필요 → 도구로 처리
+  const card = activeCardOfSlot(v.slots[slotIndex]);
+  const effect = card.ability.effect;
+  v.abilityRun = {
+    slotIndex,
+    cardId: card.id,
+    steps: effect ? effect.map((s) => ({ ...s })) : null,
+    index: 0,
+    pending: null,
+    done: false,
+    manual: !effect, // effect 없으면 일반 뽑기/버리기 도구로 직접
+  };
+  if (effect) advanceAbilityRun(state);
+  return state;
 }
+
+// 자동 단계는 실행하고, 입력이 필요한 단계에서 멈춘다.
+export function advanceAbilityRun(state) {
+  const run = state.visit.abilityRun;
+  if (!run || run.manual) return state;
+  while (run.index < run.steps.length) {
+    const step = run.steps[run.index];
+    const def = STEP_TYPES[step.type];
+    if (!def) { run.index++; continue; }          // 모르는 타입은 건너뜀
+    if (def.auto) { def.run(state, step); run.index++; continue; }
+    run.pending = def.prompt(step);               // 입력 대기
+    return state;
+  }
+  run.pending = null;
+  run.done = true;
+  return state;
+}
+
+// 입력이 필요한 단계 처리 (선택한 손패 인덱스들)
+export function resolveAbilityStep(state, selectedIndexes) {
+  const run = state.visit.abilityRun;
+  if (!run || !run.pending) return { ok: false };
+  const p = run.pending;
+  const n = selectedIndexes.length;
+  // FAQ: 가능한 만큼만 — 손패가 모자라면 요구치를 줄인다
+  const handLen = state.visit.hand.length;
+  const reqMin = Math.min(p.min, handLen);
+  const reqMax = Math.min(p.max, handLen);
+  if (n < reqMin || n > reqMax) return { ok: false, reason: `${stepCountText(p)}장을 선택하세요` };
+  const cards = selectedIndexes.map((i) => state.visit.hand[i]);
+  const c = checkConstraint(p.constraint, cards);
+  if (!c.ok) return { ok: false, reason: c.reason };
+  const step = run.steps[run.index];
+  STEP_TYPES[step.type].resolve(state, step, selectedIndexes);
+  run.index++;
+  run.pending = null;
+  advanceAbilityRun(state);
+  return { ok: true };
+}
+
+function stepCountText(p) { return p.min === p.max ? `${p.min}` : `${p.min}~${p.max}`; }
+
+export function getAbilityRun(state) { return state.visit ? state.visit.abilityRun : null; }
+export function endAbilityRun(state) { if (state.visit) state.visit.abilityRun = null; return state; }
 
 // 수동 도구: 덱에서 N장 뽑기
 export function manualDraw(state, n = 1) {

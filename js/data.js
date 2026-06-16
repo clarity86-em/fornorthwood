@@ -70,9 +70,20 @@ function ch(suit, rank, crown, name, ability) {
 //   'drawThenDiscard:N:D' N장 뽑고 D장 버리기
 // 그 외는 text 를 보고 수동 도구(뽑기/버리기)로 직접 실행.
 
+// 능력 효과(effect)는 "단계(step)"의 배열로 표현한다. (engine 의 STEP_TYPES 가 해석)
+//   { type:'draw', n }                덱에서 n장 뽑기 (자동)
+//   { type:'discard', n }             손패에서 n장 골라 버리기 (직접 선택)
+//   { type:'discard', n, constraint } 조건부 버리기 (예: 합이 9)
+//   { type:'message', text }          안내만 표시
+// 새로운 능력 문구가 오면 여기에 단계를 조합하거나, 없는 동작이면
+// engine 의 STEP_TYPES 에 새 타입을 추가한다.
+
 export const CHARACTERS = [
   // ---- Claws (발톱) ----
-  ch('C', 'J', false, 'Fox',  { text: '2장 뽑고, 2장 버린다.', auto: 'drawThenDiscard:2:2' }),
+  ch('C', 'J', false, 'Fox',  {
+    text: '2장 뽑고, 2장 버린다.',
+    effect: [ { type: 'draw', n: 2 }, { type: 'discard', n: 2 } ],
+  }),
   ch('C', 'Q', false, 'Queen of Claws', { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
   ch('C', 'K', false, 'King of Claws',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
   ch('C', 'J', true,  'Crowned Claws J', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),

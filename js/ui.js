@@ -15,7 +15,6 @@ export function start() {
 }
 
 function render() {
-  ui.selDiscard.clear();
   let html = '';
   switch (state.phase) {
     case 'setup':      html = screenSetup(); break;
@@ -249,26 +248,58 @@ function openAbilityModal(slotIndex) {
   const slot = v.slots[slotIndex];
   const card = E.activeCardOfSlot(slot);
   const ph = card.ability.placeholder;
+  const run = E.getAbilityRun(state);
+  const selectable = run && (run.manual || run.pending);
+
+  // 선택 카드 렌더
+  const handHtml = v.hand.map((c, i) => {
+    const sel = ui.selDiscard.has(i);
+    return `<div class="pcard suit-${c.suit} ${selectable ? '' : 'dim'} ${sel ? 'sel' : ''}"
+      ${selectable ? `data-msel="${i}"` : ''}>
+      <span class="v">${c.value}</span><span class="s">${SUITS[c.suit].symbol}</span></div>`;
+  }).join('') || '<span class="muted">손패 없음</span>';
+
+  // 본문: 가이드 단계 / 수동 / 완료
+  let body = '';
+  if (run && run.manual) {
+    body = `
+      <p class="muted small">이 카드는 아직 임시 텍스트예요. 설명대로 직접 실행하세요.</p>
+      <div class="row wrap" style="margin:8px 0;">
+        <button class="btn sm" data-mdraw="1">덱에서 1장 뽑기</button>
+        <button class="btn sm" data-mdiscard ${ui.selDiscard.size ? '' : 'disabled'}>선택 카드 버리기</button>
+      </div>`;
+  } else if (run && run.pending) {
+    const p = run.pending;
+    const n = ui.selDiscard.size;
+    const cards = [...ui.selDiscard].map((i) => v.hand[i]);
+    const handLen = v.hand.length;
+    const reqMin = Math.min(p.min, handLen), reqMax = Math.min(p.max, handLen);
+    const cons = E.checkConstraint(p.constraint, cards);
+    const countOk = n >= reqMin && n <= reqMax;
+    const valid = countOk && cons.ok;
+    const hint = !countOk ? `${reqMin === reqMax ? reqMin : reqMin + '~' + reqMax}장 선택`
+      : (!cons.ok ? cons.reason : '확인을 누르세요');
+    body = `
+      <p class="small"><b>${p.text}</b></p>
+      <p class="muted small">선택: ${n}장 · ${hint}</p>
+      <button class="btn primary full" data-confirmstep ${valid ? '' : 'disabled'}>확인</button>`;
+  } else {
+    body = `<p class="center" style="color:var(--good);font-weight:700;">능력 완료 ✅</p>`;
+  }
+
+  const showClose = !(run && run.pending); // 입력 대기 중엔 닫기 숨김
   ui.modal = `
   <div class="modal-bg" data-modalbg>
     <div class="modal">
       <div class="row"><h3>${SUITS[card.suit].symbol} ${card.name}${card.crown ? ' 👑' : ''}</h3>
-        <span class="spacer"></span>${ph ? '<span class="tag placeholder">임시 텍스트</span>' : ''}</div>
+        <span class="spacer"></span>${ph ? '<span class="tag placeholder">임시</span>' : ''}</div>
       <div class="ability-text">${card.ability.text}</div>
-      <p class="muted small">능력을 직접 실행하세요. 카드 설명대로 뽑고 버리면 됩니다.</p>
-      <div class="row wrap" style="margin:8px 0;">
-        <button class="btn sm" data-mdraw="1">덱에서 1장 뽑기</button>
-        <button class="btn sm" data-mdiscard>선택 카드 버리기</button>
+      ${body}
+      <div class="card-panel" style="padding:8px; margin-top:8px;">
+        <div class="hand">${handHtml}</div>
+        ${selectable ? '<p class="muted small center" style="margin:6px 0 0;">카드를 탭해 선택 (빨강)</p>' : ''}
       </div>
-      <div class="card-panel" style="padding:8px;">
-        <div class="hand" data-modalhand>
-          ${v.hand.map((c, i) => `<div class="pcard suit-${c.suit}" data-msel="${i}">
-            <span class="v">${c.value}</span><span class="s">${SUITS[c.suit].symbol}</span></div>`).join('')
-            || '<span class="muted">손패 없음</span>'}
-        </div>
-        <p class="muted small center" style="margin:6px 0 0;">버릴 카드를 탭해서 선택 (빨강)</p>
-      </div>
-      <button class="btn primary full" data-act="closeModal">완료</button>
+      ${showClose ? '<button class="btn primary full" data-act="closeModal">완료</button>' : ''}
     </div>
   </div>`;
   render();
@@ -306,22 +337,33 @@ function bind() {
     E.playResponse(state, Number(el.dataset.play)); render();
   }));
 
-  // 능력 버튼 → 모달
+  // 능력 버튼 → 능력 실행 시작 + 모달
   r.querySelectorAll('[data-ability]').forEach((el) => el.addEventListener('click', () => {
     const idx = Number(el.dataset.ability);
-    E.activateAbility(state, idx);   // 소진 처리 + 자동효과
-    openAbilityModal(idx);           // 수동 도구
+    if (!E.canUseAbility(state, idx)) return;
+    ui.selDiscard.clear();
+    E.activateAbility(state, idx);   // 소진 처리 + 자동 단계 실행 + 입력 대기
+    if (E.getAbilityRun(state)) openAbilityModal(idx); else render();
   }));
 
-  // 모달 내부 도구
-  r.querySelectorAll('[data-mdraw]').forEach((el) => el.addEventListener('click', () => {
-    E.manualDraw(state, Number(el.dataset.mdraw));
-    refreshModalHand();
-  }));
+  // 모달: 카드 선택 토글
   r.querySelectorAll('[data-msel]').forEach((el) => el.addEventListener('click', () => {
     const i = Number(el.dataset.msel);
     if (ui.selDiscard.has(i)) ui.selDiscard.delete(i); else ui.selDiscard.add(i);
-    el.classList.toggle('sel');
+    refreshModalHand();
+  }));
+  // 모달: 가이드 단계 확인
+  const cstep = r.querySelector('[data-confirmstep]');
+  if (cstep) cstep.addEventListener('click', () => {
+    const res = E.resolveAbilityStep(state, [...ui.selDiscard]);
+    if (res.ok) ui.selDiscard.clear();
+    refreshModalHand();
+  });
+  // 모달: 수동 도구
+  r.querySelectorAll('[data-mdraw]').forEach((el) => el.addEventListener('click', () => {
+    E.manualDraw(state, Number(el.dataset.mdraw));
+    ui.selDiscard.clear(); // 정렬로 인덱스가 바뀌므로 선택 해제
+    refreshModalHand();
   }));
   const dbtn = r.querySelector('[data-mdiscard]');
   if (dbtn) dbtn.addEventListener('click', () => {
@@ -330,7 +372,7 @@ function bind() {
     refreshModalHand();
   });
   const bg = r.querySelector('[data-modalbg]');
-  if (bg) bg.addEventListener('click', (e) => { if (e.target === bg) closeModal(); });
+  if (bg) bg.addEventListener('click', (e) => { if (e.target === bg && !(E.getAbilityRun(state) && E.getAbilityRun(state).pending)) closeModal(); });
 }
 
 function refreshModalHand() {
@@ -354,4 +396,8 @@ function onAct(act) {
   render();
 }
 
-function closeModal() { ui.modal = null; ui.modalSlot = null; render(); }
+function closeModal() {
+  ui.modal = null; ui.modalSlot = null; ui.selDiscard.clear();
+  E.endAbilityRun(state);
+  render();
+}
