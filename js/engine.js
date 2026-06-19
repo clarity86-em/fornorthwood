@@ -238,6 +238,28 @@ const STEP_TYPES = {
     },
     resolve(state, step, sel) { manualDiscard(state, sel); },
   },
+  // 손패를 n장이 될 때까지 채우기 (발톱 잭)
+  drawTo: {
+    auto: true,
+    run(state, step) {
+      const v = state.visit;
+      while (v.hand.length < (step.n ?? 8) && v.deck.length > 0) v.hand.push(v.deck.shift());
+      sortHand(v.hand);
+    },
+    describe: (s) => `${s.n ?? 8}장이 될 때까지 뽑기`,
+  },
+  // 특정 무늬(트럼프 가능) 카드를 손패에서 전부 버리기 (꽃 잭)
+  discardSuit: {
+    auto: true,
+    run(state, step) {
+      const v = state.visit;
+      const suit = step.suit === 'trump' ? v.trump : step.suit;
+      for (let i = v.hand.length - 1; i >= 0; i--) {
+        if (v.hand[i].suit === suit) v.discard.push(v.hand.splice(i, 1)[0]);
+      }
+    },
+    describe: (s) => `${s.suit === 'trump' ? '트럼프' : s.suit} 무늬 전부 버리기`,
+  },
   // 안내만
   message: {
     auto: true,

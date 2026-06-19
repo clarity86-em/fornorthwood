@@ -78,13 +78,13 @@ function ch(suit, rank, crown, name, ability) {
 // 새로운 능력 문구가 오면 여기에 단계를 조합하거나, 없는 동작이면
 // engine 의 STEP_TYPES 에 새 타입을 추가한다.
 
-// 실제 카드 이름/능력은 사진을 받는 대로 채운다. 지금은 무늬+등급 임시 이름.
+// 실제 카드 이름/능력은 사진을 받는 대로 채운다.
 const P = '(실제 카드 텍스트 입력 필요)';
-function trio(suit, ko) {
+function trio(suit, ko, jack) {
   return [
-    ch(suit, 'J', false, `${ko} J`,    { text: P, placeholder: true }),
-    ch(suit, 'Q', false, `${ko} Q`,    { text: P, placeholder: true }),
-    ch(suit, 'K', false, `${ko} K`,    { text: P, placeholder: true }),
+    ch(suit, 'J', false, `${ko} 잭`, jack),
+    ch(suit, 'Q', false, `${ko} Q`, { text: P, placeholder: true }),
+    ch(suit, 'K', false, `${ko} K`, { text: P, placeholder: true }),
     ch(suit, 'J', true,  `${ko} J`, { text: P, placeholder: true }),
     ch(suit, 'Q', true,  `${ko} Q`, { text: P, placeholder: true }),
     ch(suit, 'K', true,  `${ko} K`, { text: P, placeholder: true }),
@@ -92,10 +92,30 @@ function trio(suit, ko) {
 }
 
 export const CHARACTERS = [
-  ...trio('C', '발톱'),
-  ...trio('F', '꽃'),
-  ...trio('L', '나뭇잎'),
-  ...trio('E', '눈'),
+  // 발톱 잭 — "잠시만 참아"
+  ...trio('C', '발톱', {
+    flavor: '잠시만 참아',
+    text: '손에 든 카드가 8장보다 적으면, 8장이 될 때까지 카드를 뽑습니다.',
+    effect: [ { type: 'drawTo', n: 8 } ],
+  }),
+  // 꽃 잭 — "폭탄 투하!"
+  ...trio('F', '꽃', {
+    flavor: '폭탄 투하!',
+    text: '현재 통치자의 무늬(트럼프)와 일치하는 손패의 모든 카드를 버립니다.',
+    effect: [ { type: 'discardSuit', suit: 'trump' } ],
+  }),
+  // 나뭇잎 잭 — "누구나 자기에게 맞는 그릇이 있지"  (보드 조작: 해석 확인 후 effect 연결)
+  ...trio('L', '나뭇잎', {
+    flavor: '누구나 자기에게 맞는 그릇이 있지',
+    text: '방문 중인 영지의 통치자를 최대 두 칸 이내 영지의 중립적인 통치자와 바꿉니다.',
+    placeholder: true,
+  }),
+  // 눈 잭 — "모든 거래는 잭에게 맡겨"
+  ...trio('E', '눈', {
+    flavor: '모든 거래는 잭에게 맡겨',
+    text: '카드 2장을 뽑은 다음, 카드 2장을 버립니다.',
+    effect: [ { type: 'draw', n: 2 }, { type: 'discard', n: 2 } ],
+  }),
 ];
 
 export function charById(id) {

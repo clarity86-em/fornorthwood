@@ -293,6 +293,7 @@ function openAbilityModal(slotIndex) {
     <div class="modal">
       <div class="row"><h3>${SUITS[card.suit].symbol} ${card.name}${card.crown ? ' 👑' : ''}</h3>
         <span class="spacer"></span>${ph ? '<span class="tag placeholder">임시</span>' : ''}</div>
+      ${card.ability.flavor ? `<p class="muted small" style="margin:0 0 6px; font-style:italic;">“${card.ability.flavor}”</p>` : ''}
       <div class="ability-text">${card.ability.text}</div>
       ${body}
       <div class="card-panel" style="padding:8px; margin-top:8px;">
