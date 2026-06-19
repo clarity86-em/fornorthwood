@@ -3,12 +3,12 @@
 // 카드 / 영지 / 캐릭터 능력 정의 (데이터 중심 설계)
 // ============================================================
 
-// 네 가지 무늬(suit)
+// 네 가지 무늬(suit) — 색은 한국어판 실물 카드 기준
 export const SUITS = {
-  C: { id: 'C', name: 'Claws',   ko: '발톱', symbol: '🐾', color: '#c0563b' },
-  F: { id: 'F', name: 'Flowers', ko: '꽃',   symbol: '🌸', color: '#c2497e' },
-  L: { id: 'L', name: 'Leaves',  ko: '잎',   symbol: '🍃', color: '#3f8f54' },
-  E: { id: 'E', name: 'Eyes',    ko: '눈',   symbol: '👁', color: '#3a6ea5' },
+  C: { id: 'C', name: 'Claws',   ko: '발톱',   symbol: '🐾', color: '#8d8d8d' }, // 회색
+  F: { id: 'F', name: 'Flowers', ko: '꽃',     symbol: '🌸', color: '#d2596b' }, // 분홍/빨강
+  L: { id: 'L', name: 'Leaves',  ko: '나뭇잎', symbol: '🍂', color: '#e0a92e' }, // 노랑/주황
+  E: { id: 'E', name: 'Eyes',    ko: '눈',     symbol: '👁', color: '#5b9bd5' }, // 파랑
 };
 export const SUIT_ORDER = ['C', 'F', 'L', 'E'];
 
@@ -78,41 +78,24 @@ function ch(suit, rank, crown, name, ability) {
 // 새로운 능력 문구가 오면 여기에 단계를 조합하거나, 없는 동작이면
 // engine 의 STEP_TYPES 에 새 타입을 추가한다.
 
+// 실제 카드 이름/능력은 사진을 받는 대로 채운다. 지금은 무늬+등급 임시 이름.
+const P = '(실제 카드 텍스트 입력 필요)';
+function trio(suit, ko) {
+  return [
+    ch(suit, 'J', false, `${ko} J`,    { text: P, placeholder: true }),
+    ch(suit, 'Q', false, `${ko} Q`,    { text: P, placeholder: true }),
+    ch(suit, 'K', false, `${ko} K`,    { text: P, placeholder: true }),
+    ch(suit, 'J', true,  `${ko} J`, { text: P, placeholder: true }),
+    ch(suit, 'Q', true,  `${ko} Q`, { text: P, placeholder: true }),
+    ch(suit, 'K', true,  `${ko} K`, { text: P, placeholder: true }),
+  ];
+}
+
 export const CHARACTERS = [
-  // ---- Claws (발톱) ----
-  ch('C', 'J', false, 'Fox',  {
-    text: '2장 뽑고, 2장 버린다.',
-    effect: [ { type: 'draw', n: 2 }, { type: 'discard', n: 2 } ],
-  }),
-  ch('C', 'Q', false, 'Queen of Claws', { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('C', 'K', false, 'King of Claws',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('C', 'J', true,  'Crowned Claws J', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('C', 'Q', true,  'Crowned Claws Q', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('C', 'K', true,  'Crowned Claws K', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-
-  // ---- Flowers (꽃) ----
-  ch('F', 'J', false, 'Jack of Flowers',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('F', 'Q', false, 'Queen of Flowers', { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('F', 'K', false, 'King of Flowers',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('F', 'J', true,  'Crowned Flowers J', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('F', 'Q', true,  'Crowned Flowers Q', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('F', 'K', true,  'Crowned Flowers K', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-
-  // ---- Leaves (잎) ----
-  ch('L', 'J', false, 'Jack of Leaves',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('L', 'Q', false, 'Queen of Leaves', { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('L', 'K', false, 'King of Leaves',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('L', 'J', true,  'Crowned Leaves J', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('L', 'Q', true,  'Crowned Leaves Q', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('L', 'K', true,  'Crowned Leaves K', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-
-  // ---- Eyes (눈) ----
-  ch('E', 'J', false, 'Jack of Eyes',  { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('E', 'Q', false, 'Queen of Eyes', { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('E', 'K', false, 'Owl',           { text: '(실제 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('E', 'J', true,  'Crowned Eyes J', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('E', 'Q', true,  'Crowned Eyes Q', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
-  ch('E', 'K', true,  'Crowned Eyes K', { text: '(상급 카드 텍스트 입력 필요)', placeholder: true }),
+  ...trio('C', '발톱'),
+  ...trio('F', '꽃'),
+  ...trio('L', '나뭇잎'),
+  ...trio('E', '눈'),
 ];
 
 export function charById(id) {

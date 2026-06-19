@@ -34,7 +34,7 @@ function render() {
 function screenSetup() {
   const d = state.difficulty, m = state.mode;
   return `
-  <div class="title"><h1>For Northwood!</h1><p>솔로 트릭테이킹 — 폰 웹앱</p></div>
+  <div class="title"><h1>북쪽숲을 위하여!</h1><p>For Northwood! · 솔로 트릭테이킹</p></div>
   <div class="card-panel">
     <h3>난이도</h3>
     <div class="seg" data-seg="difficulty">

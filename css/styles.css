@@ -89,8 +89,8 @@ button { font-family: inherit; cursor: pointer; }
   border: 2px solid #d8cab0; font-weight: 800; box-shadow: var(--shadow); position: relative; user-select: none; }
 .pcard .v { font-size: 22px; line-height: 1; }
 .pcard .s { font-size: 16px; }
-.pcard.suit-C { color: #9c3a22; } .pcard.suit-F { color: #a82e66; }
-.pcard.suit-L { color: #2c6e3d; } .pcard.suit-E { color: #2a527d; }
+.pcard.suit-C { color: #6b6b6b; } .pcard.suit-F { color: #c63f5a; }
+.pcard.suit-L { color: #b9842a; } .pcard.suit-E { color: #3a72b0; }
 .pcard.playable { cursor: pointer; outline: 2px solid var(--gold); }
 .pcard.playable:active { transform: translateY(-4px); }
 .pcard.dim { opacity: .35; }
