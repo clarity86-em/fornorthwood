@@ -73,12 +73,12 @@ function fiefView(f, opts = {}) {
   const badge = f.status === 'friendly' ? '<span class="badge">우호</span>'
     : f.status === 'failed' ? '<span class="badge failed">실패</span>' : '';
   return `
-    <div class="${cls.join(' ')}" ${opts.clickable ? `data-fief="${f.pos}"` : ''}>
+    <div class="${cls.join(' ')}" ${opts.clickable ? `data-fief="${f.pos}"` : ''} style="border-bottom:3px solid ${suit.color};">
       ${badge}
       <div class="target">${f.target}</div>
       <div class="stars">${'★'.repeat(f.stars)}</div>
-      <div class="suit">${suit.symbol}</div>
-      <div class="ruler">${RANK_LABEL[ruler.rank]} · ${ruler.name}${ruler.crown ? ' 👑' : ''}</div>
+      <span class="suitdot" style="background:${suit.color}">${suit.symbol}</span>
+      <div class="ruler"><b style="color:${suit.color}">${RANK_LABEL[ruler.rank]}·${suit.ko}</b> ${ruler.crown ? '👑' : ''}</div>
     </div>`;
 }
 
@@ -108,12 +108,13 @@ function allyMini(slot, idx, withUseBtn) {
   if (slot.exhausted) cls.push('exhausted');
   if (slot.substituteId) cls.push('sub');
   const canUse = withUseBtn && E.canUseAbility(state, idx);
+  const tint = `border-color:${suit.color}; background:linear-gradient(180deg, ${suit.color}33, ${suit.color}10);`;
   return `
-    <div class="${cls.join(' ')}">
-      <div class="sym">${suit.symbol}</div>
+    <div class="${cls.join(' ')}" style="${tint}">
+      <span class="suitdot" style="background:${suit.color}">${suit.symbol}</span>
       <div class="nm">${card.name}${card.crown ? ' 👑' : ''}</div>
       ${slot.substituteId ? '<div class="tag">대역</div>' : ''}
-      ${withUseBtn ? `<button class="btn sm usebtn ${canUse ? '' : ''}" data-ability="${idx}" ${canUse ? '' : 'disabled'}>
+      ${withUseBtn ? `<button class="btn sm usebtn" data-ability="${idx}" ${canUse ? '' : 'disabled'}>
         ${slot.exhausted ? '사용함' : '능력'}</button>` : ''}
     </div>`;
 }
@@ -261,9 +262,17 @@ function openAbilityModal(slotIndex) {
       <span class="v">${c.value}</span><span class="s">${SUITS[c.suit].symbol}</span></div>`;
   }).join('') || '<span class="muted">손패 없음</span>';
 
-  // 본문: 가이드 단계 / 수동 / 완료
+  // 본문: 미리보기 / 가이드 단계 / 수동 / 완료
+  const isPreview = !run;
   let body = '';
-  if (run && run.manual) {
+  if (isPreview) {
+    body = `
+      <p class="muted small">이 능력을 사용할까요? (방문당 1회)</p>
+      <div class="row" style="gap:8px; margin-top:8px;">
+        <button class="btn ghost full" data-act="closeModal">취소</button>
+        <button class="btn primary full" data-useability>사용</button>
+      </div>`;
+  } else if (run && run.manual) {
     body = `
       <p class="muted small">이 카드는 아직 임시 텍스트예요. 설명대로 직접 실행하세요.</p>
       <div class="row wrap" style="margin:8px 0;">
@@ -297,19 +306,23 @@ function openAbilityModal(slotIndex) {
     body = `<p class="center" style="color:var(--good);font-weight:700;">능력 완료 ✅</p>`;
   }
 
-  const showClose = !(run && run.pending); // 입력 대기 중엔 닫기 숨김
+  const suit = SUITS[card.suit];
+  const showClose = !isPreview && !(run && run.pending); // 미리보기·입력 대기 중엔 기본 닫기 숨김
+  const showHand = !isPreview; // 미리보기에선 손패 숨김
   ui.modal = `
   <div class="modal-bg" data-modalbg>
-    <div class="modal">
-      <div class="row"><h3>${SUITS[card.suit].symbol} ${card.name}${card.crown ? ' 👑' : ''}</h3>
+    <div class="modal" style="border-top:4px solid ${suit.color};">
+      <div class="row" style="align-items:center;">
+        <span class="suitdot" style="background:${suit.color}">${suit.symbol}</span>
+        <h3 style="margin:0 0 0 8px;">${card.name}${card.crown ? ' 👑' : ''}</h3>
         <span class="spacer"></span>${ph ? '<span class="tag placeholder">임시</span>' : ''}</div>
-      ${card.ability.flavor ? `<p class="muted small" style="margin:0 0 6px; font-style:italic;">“${card.ability.flavor}”</p>` : ''}
+      ${card.ability.flavor ? `<p class="muted small" style="margin:6px 0; font-style:italic;">“${card.ability.flavor}”</p>` : ''}
       <div class="ability-text">${card.ability.text}</div>
       ${body}
-      <div class="card-panel" style="padding:8px; margin-top:8px;">
+      ${showHand ? `<div class="card-panel" style="padding:8px; margin-top:8px;">
         <div class="hand">${handHtml}</div>
         ${selectable ? '<p class="muted small center" style="margin:6px 0 0;">카드를 탭해 선택 (빨강)</p>' : ''}
-      </div>
+      </div>` : ''}
       ${showClose ? '<button class="btn primary full" data-act="closeModal">완료</button>' : ''}
     </div>
   </div>`;
@@ -348,14 +361,19 @@ function bind() {
     E.playResponse(state, Number(el.dataset.play)); render();
   }));
 
-  // 능력 버튼 → 능력 실행 시작 + 모달
+  // 능력 버튼 → 먼저 미리보기(설명 + 사용/취소). 실제 발동은 [사용] 누를 때.
   r.querySelectorAll('[data-ability]').forEach((el) => el.addEventListener('click', () => {
     const idx = Number(el.dataset.ability);
     if (!E.canUseAbility(state, idx)) return;
     ui.selDiscard.clear();
-    E.activateAbility(state, idx);   // 소진 처리 + 자동 단계 실행 + 입력 대기
-    if (E.getAbilityRun(state)) openAbilityModal(idx); else render();
+    openAbilityModal(idx);   // run 없음 = 미리보기 모드
   }));
+  // 미리보기에서 [사용] → 실제 발동
+  const useBtn = r.querySelector('[data-useability]');
+  if (useBtn) useBtn.addEventListener('click', () => {
+    E.activateAbility(state, ui.modalSlot);  // 소진 + 자동 단계 실행 + 입력 대기
+    openAbilityModal(ui.modalSlot);
+  });
 
   // 모달: 카드 선택 토글
   r.querySelectorAll('[data-msel]').forEach((el) => el.addEventListener('click', () => {

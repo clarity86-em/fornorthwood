@@ -78,6 +78,9 @@ button { font-family: inherit; cursor: pointer; }
 .fief .stars { color: var(--gold); font-size: 12px; letter-spacing: 1px; }
 .fief .ruler { font-size: 12px; color: var(--muted); line-height: 1.2; }
 .fief .suit { font-size: 18px; }
+.suitdot { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center;
+  font-size: 13px; line-height: 1; border: 1.5px solid rgba(255,255,255,.6); flex: 0 0 auto;
+  box-shadow: 0 1px 3px rgba(0,0,0,.35); }
 .fief .badge { position: absolute; top: -8px; right: -6px; font-size: 11px; padding: 1px 6px;
   border-radius: 8px; background: var(--good); color: #0c1a0c; font-weight: 700; }
 .fief .badge.failed { background: var(--bad); color: #2a0c0c; }
