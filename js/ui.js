@@ -249,7 +249,9 @@ function openAbilityModal(slotIndex) {
   const card = E.activeCardOfSlot(slot);
   const ph = card.ability.placeholder;
   const run = E.getAbilityRun(state);
-  const selectable = run && (run.manual || run.pending);
+  const pendingSelect = run && run.pending && run.pending.action === 'select';
+  const pendingFief = run && run.pending && run.pending.action === 'selectFief';
+  const selectable = run && (run.manual || pendingSelect); // 손패 탭 가능 여부
 
   // 선택 카드 렌더
   const handHtml = v.hand.map((c, i) => {
@@ -268,6 +270,14 @@ function openAbilityModal(slotIndex) {
         <button class="btn sm" data-mdraw="1">덱에서 1장 뽑기</button>
         <button class="btn sm" data-mdiscard ${ui.selDiscard.size ? '' : 'disabled'}>선택 카드 버리기</button>
       </div>`;
+  } else if (pendingFief) {
+    const p = run.pending;
+    const btns = p.targets.map((pos) => {
+      const f = state.fiefs[pos];
+      const c = charById(f.rulerId);
+      return `<button class="btn sm" data-selfief="${pos}">영지 #${pos} · ${SUITS[c.suit].symbol} ${c.name}</button>`;
+    }).join('');
+    body = `<p class="small"><b>${p.text}</b></p><div class="row wrap" style="margin:8px 0;">${btns}</div>`;
   } else if (run && run.pending) {
     const p = run.pending;
     const n = ui.selDiscard.size;
@@ -360,6 +370,11 @@ function bind() {
     if (res.ok) ui.selDiscard.clear();
     refreshModalHand();
   });
+  // 모달: 영지 선택 (통치자 맞교환)
+  r.querySelectorAll('[data-selfief]').forEach((el) => el.addEventListener('click', () => {
+    E.resolveAbilityFief(state, Number(el.dataset.selfief));
+    refreshModalHand();
+  }));
   // 모달: 수동 도구
   r.querySelectorAll('[data-mdraw]').forEach((el) => el.addEventListener('click', () => {
     E.manualDraw(state, Number(el.dataset.mdraw));

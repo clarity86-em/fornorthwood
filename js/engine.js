@@ -260,6 +260,26 @@ const STEP_TYPES = {
     },
     describe: (s) => `${s.suit === 'trump' ? '트럼프' : s.suit} 무늬 전부 버리기`,
   },
+  // 통치자 맞교환 (나뭇잎 잭): 현재 영지 ↔ ±range 이내 중립 영지
+  swapRuler: {
+    auto: false,
+    prompt(step, state) {
+      const cur = state.visit.fiefPos;
+      const range = step.range ?? 2;
+      const targets = state.fiefs
+        .filter((f) => f.pos !== cur && !f.visited && Math.abs(f.pos - cur) <= range)
+        .map((f) => f.pos);
+      return { action: 'selectFief', targets, text: '바꿀 중립 영지를 선택' };
+    },
+    resolveFief(state, step, fiefPos) {
+      const v = state.visit;
+      const a = state.fiefs[v.fiefPos];
+      const b = state.fiefs[fiefPos];
+      [a.rulerId, b.rulerId] = [b.rulerId, a.rulerId];
+      v.trump = charById(a.rulerId).suit; // 현재 영지의 새 통치자 무늬가 트럼프
+      state.log.push(`나뭇잎 잭: 영지 #${a.pos} ↔ #${b.pos} 통치자 교환 (트럼프 → ${SUITS[v.trump].ko})`);
+    },
+  },
   // 안내만
   message: {
     auto: true,
@@ -331,7 +351,11 @@ export function advanceAbilityRun(state) {
     const def = STEP_TYPES[step.type];
     if (!def) { run.index++; continue; }          // 모르는 타입은 건너뜀
     if (def.auto) { def.run(state, step); run.index++; continue; }
-    run.pending = def.prompt(step);               // 입력 대기
+    run.pending = def.prompt(step, state);        // 입력 대기
+    // FAQ: 수행할 수 없으면 아무 일도 일어나지 않음 → 건너뜀
+    if (run.pending.action === 'selectFief' && run.pending.targets.length === 0) {
+      run.pending = null; run.index++; continue;
+    }
     return state;
   }
   run.pending = null;
@@ -355,6 +379,19 @@ export function resolveAbilityStep(state, selectedIndexes) {
   if (!c.ok) return { ok: false, reason: c.reason };
   const step = run.steps[run.index];
   STEP_TYPES[step.type].resolve(state, step, selectedIndexes);
+  run.index++;
+  run.pending = null;
+  advanceAbilityRun(state);
+  return { ok: true };
+}
+
+// 영지 선택이 필요한 단계 처리 (swapRuler 등)
+export function resolveAbilityFief(state, fiefPos) {
+  const run = state.visit.abilityRun;
+  if (!run || !run.pending || run.pending.action !== 'selectFief') return { ok: false };
+  if (!run.pending.targets.includes(fiefPos)) return { ok: false };
+  const step = run.steps[run.index];
+  STEP_TYPES[step.type].resolveFief(state, step, fiefPos);
   run.index++;
   run.pending = null;
   advanceAbilityRun(state);
