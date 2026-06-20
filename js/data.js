@@ -100,11 +100,11 @@ export const CHARACTERS = [
       text: '손에 든 카드가 8장보다 적으면, 8장이 될 때까지 카드를 뽑습니다.',
       effect: [ { type: 'drawTo', n: 8 } ],
     },
-    // 발톱 여왕 — 해석 확정 후 effect 연결 (각 더미 1장 vs 셋 중 1장)
+    // 발톱 여왕 — 덱/버림/점수 더미 맨 위에서 골라서 최대 3장
     queen: {
       flavor: '내 기억엔 말이지',
-      text: '카드 더미, 버려진 카드 더미, 점수 더미에서 맨 위 카드를 뽑습니다.',
-      placeholder: true,
+      text: '카드 더미, 버려진 카드 더미, 점수 더미에서 맨 위 카드를 (각 더미당 1장씩, 원하는 만큼) 손으로 가져옵니다.',
+      effect: [ { type: 'takeFromPiles' } ],
     },
     king: {
       flavor: '자만? 아니 자부심이야',

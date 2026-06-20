@@ -341,6 +341,27 @@ const STEP_TYPES = {
       sortHand(v.hand);
     },
   },
+  // 덱/버림/점수 더미 맨 위에서 골라 손으로 (발톱 여왕) — 각 더미 1장, 최대 3장
+  takeFromPiles: {
+    auto: false,
+    prompt(step, state) {
+      const v = state.visit;
+      const piles = [];
+      if (v.deck.length)    piles.push({ key: 'deck', hidden: true });
+      if (v.discard.length) piles.push({ key: 'discard', card: v.discard[v.discard.length - 1] });
+      if (v.score.length)   piles.push({ key: 'score', card: v.score[v.score.length - 1] });
+      return { action: 'takePiles', piles, text: '가져올 더미를 고르세요 (각 더미 맨 위 1장)' };
+    },
+    resolveTake(state, step, keys) {
+      const v = state.visit;
+      for (const key of keys) {
+        if (key === 'deck' && v.deck.length) v.hand.push(v.deck.shift());
+        else if (key === 'discard' && v.discard.length) v.hand.push(v.discard.pop());
+        else if (key === 'score' && v.score.length) v.hand.push(v.score.pop());
+      }
+      sortHand(v.hand);
+    },
+  },
   // 통치자 맞교환 (나뭇잎 잭): 현재 영지 ↔ ±range 이내 중립 영지
   swapRuler: {
     auto: false,
@@ -434,9 +455,9 @@ export function advanceAbilityRun(state) {
     if (def.auto) { def.run(state, step); run.index++; continue; }
     run.pending = def.prompt(step, state);        // 입력 대기
     // FAQ: 수행할 수 없으면 아무 일도 일어나지 않음 → 건너뜀
-    if (run.pending.action === 'selectFief' && run.pending.targets.length === 0) {
-      run.pending = null; run.index++; continue;
-    }
+    const empty = (run.pending.action === 'selectFief' && run.pending.targets.length === 0)
+      || (run.pending.action === 'takePiles' && run.pending.piles.length === 0);
+    if (empty) { run.pending = null; run.index++; continue; }
     return state;
   }
   run.pending = null;
@@ -473,6 +494,18 @@ export function resolveAbilityFief(state, fiefPos) {
   if (!run.pending.targets.includes(fiefPos)) return { ok: false };
   const step = run.steps[run.index];
   STEP_TYPES[step.type].resolveFief(state, step, fiefPos);
+  run.index++;
+  run.pending = null;
+  advanceAbilityRun(state);
+  return { ok: true };
+}
+
+// 더미 선택이 필요한 단계 처리 (takeFromPiles)
+export function resolveAbilityPiles(state, keys) {
+  const run = state.visit.abilityRun;
+  if (!run || !run.pending || run.pending.action !== 'takePiles') return { ok: false };
+  const step = run.steps[run.index];
+  STEP_TYPES[step.type].resolveTake(state, step, keys);
   run.index++;
   run.pending = null;
   advanceAbilityRun(state);

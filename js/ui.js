@@ -5,7 +5,7 @@ import * as E from './engine.js';
 import { SUITS, SUIT_ORDER, DIFFICULTIES, charById, RANK_LABEL } from './data.js';
 
 let state = null;
-const ui = { selDiscard: new Set(), modal: null, modalSlot: null };
+const ui = { selDiscard: new Set(), selPiles: new Set(), modal: null, modalSlot: null };
 const root = () => document.getElementById('app');
 
 export function start() {
@@ -253,6 +253,7 @@ function openAbilityModal(slotIndex) {
   const pendingSelect = run && run.pending && run.pending.action === 'select';
   const pendingFief = run && run.pending && run.pending.action === 'selectFief';
   const pendingSuit = run && run.pending && run.pending.action === 'selectSuit';
+  const pendingTake = run && run.pending && run.pending.action === 'takePiles';
   const selectable = run && (run.manual || pendingSelect); // 손패 탭 가능 여부
 
   // 선택 카드 렌더
@@ -288,6 +289,21 @@ function openAbilityModal(slotIndex) {
       return `<button class="btn sm" data-selfief="${pos}">영지 #${pos} · ${SUITS[c.suit].symbol} ${c.name}</button>`;
     }).join('');
     body = `<p class="small"><b>${p.text}</b></p><div class="row wrap" style="margin:8px 0;">${btns}</div>`;
+  } else if (pendingTake) {
+    const p = run.pending;
+    const label = { deck: '덱', discard: '버림', score: '점수' };
+    const btns = p.piles.map((pile) => {
+      const on = ui.selPiles.has(pile.key);
+      const face = pile.hidden
+        ? '<span class="pcard" style="width:34px;height:48px;background:#3a2e22;color:#c9b79c;">?</span>'
+        : pcard(pile.card);
+      return `<button class="btn sm ${on ? 'primary' : ''}" data-takepile="${pile.key}"
+        style="display:flex;flex-direction:column;gap:4px;align-items:center;">
+        <span>${label[pile.key]}${on ? ' ✓' : ''}</span>${face}</button>`;
+    }).join('');
+    body = `<p class="small"><b>${p.text}</b></p>
+      <div class="row wrap" style="margin:8px 0; gap:10px; justify-content:center;">${btns}</div>
+      <button class="btn primary full" data-confirmtake>가져오기 (${ui.selPiles.size}장)</button>`;
   } else if (pendingSuit) {
     const p = run.pending;
     const btns = SUIT_ORDER.map((s) => {
@@ -389,7 +405,7 @@ function bind() {
   r.querySelectorAll('[data-ability]').forEach((el) => el.addEventListener('click', () => {
     const idx = Number(el.dataset.ability);
     if (!E.canUseAbility(state, idx)) return;
-    ui.selDiscard.clear();
+    ui.selDiscard.clear(); ui.selPiles.clear();
     openAbilityModal(idx);   // run 없음 = 미리보기 모드
   }));
   // 미리보기에서 [사용] → 실제 발동
@@ -422,6 +438,18 @@ function bind() {
     E.resolveAbilitySuit(state, el.dataset.selsuit);
     refreshModalHand();
   }));
+  // 모달: 더미 선택 토글 / 가져오기
+  r.querySelectorAll('[data-takepile]').forEach((el) => el.addEventListener('click', () => {
+    const k = el.dataset.takepile;
+    if (ui.selPiles.has(k)) ui.selPiles.delete(k); else ui.selPiles.add(k);
+    refreshModalHand();
+  }));
+  const takeBtn = r.querySelector('[data-confirmtake]');
+  if (takeBtn) takeBtn.addEventListener('click', () => {
+    E.resolveAbilityPiles(state, [...ui.selPiles]);
+    ui.selPiles.clear();
+    refreshModalHand();
+  });
   // 모달: 수동 도구
   r.querySelectorAll('[data-mdraw]').forEach((el) => el.addEventListener('click', () => {
     E.manualDraw(state, Number(el.dataset.mdraw));
@@ -460,7 +488,7 @@ function onAct(act) {
 }
 
 function closeModal() {
-  ui.modal = null; ui.modalSlot = null; ui.selDiscard.clear();
+  ui.modal = null; ui.modalSlot = null; ui.selDiscard.clear(); ui.selPiles.clear();
   E.endAbilityRun(state);
   render();
 }
