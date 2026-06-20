@@ -201,8 +201,9 @@ function screenDialogue() {
   </div>
 
   <div class="card-panel" style="padding:10px; margin-top:10px;">
-    <div class="row small"><b>기록</b><span class="spacer"></span>
-      <span class="muted">버림 ${v.discard.length} · 득점더미 ${v.score.length}</span></div>
+    <div class="row small" style="align-items:center;"><b>더미 보기</b><span class="spacer"></span>
+      <button class="btn sm" data-viewpile="discard">🗑️ 버림 ${v.discard.length}</button>
+      <button class="btn sm" data-viewpile="score">⭐ 득점 ${v.score.length}</button></div>
     <div class="log">${state.log.slice(-6).reverse().map((l) => `<div>${l}</div>`).join('') || '<div class="muted">—</div>'}</div>
   </div>`;
 }
@@ -401,6 +402,11 @@ function bind() {
     E.playResponse(state, Number(el.dataset.play)); render();
   }));
 
+  // 더미 보기
+  r.querySelectorAll('[data-viewpile]').forEach((el) => el.addEventListener('click', () => {
+    openPileViewer(el.dataset.viewpile);
+  }));
+
   // 능력 버튼 → 먼저 미리보기(설명 + 사용/취소). 실제 발동은 [사용] 누를 때.
   r.querySelectorAll('[data-ability]').forEach((el) => el.addEventListener('click', () => {
     const idx = Number(el.dataset.ability);
@@ -490,5 +496,29 @@ function onAct(act) {
 function closeModal() {
   ui.modal = null; ui.modalSlot = null; ui.selDiscard.clear(); ui.selPiles.clear();
   E.endAbilityRun(state);
+  render();
+}
+
+// 더미 들여다보기 (룰: 언제든 볼 수 있으나 순서는 못 바꿈)
+function openPileViewer(kind) {
+  const v = state.visit;
+  const cards = kind === 'discard' ? v.discard : v.score;
+  const meta = kind === 'discard'
+    ? { title: '🗑️ 버림 더미', sub: '통치자 발언 + 득점하지 못한 내 응답' }
+    : { title: '⭐ 득점 더미', sub: '득점한 내 응답 — 이 장수가 곧 현재 점수' };
+  // 최근 카드가 위로 오도록 역순 표시
+  const list = cards.slice().reverse().map((c) => pcard(c)).join('') || '<span class="muted">비어 있음</span>';
+  ui.modal = `
+  <div class="modal-bg" data-modalbg>
+    <div class="modal">
+      <div class="row"><h3 style="margin:0;">${meta.title} (${cards.length}장)</h3><span class="spacer"></span></div>
+      <p class="muted small" style="margin:4px 0 8px;">${meta.sub}</p>
+      <div class="card-panel" style="padding:8px; max-height:50vh; overflow-y:auto;">
+        <div class="hand">${list}</div>
+      </div>
+      <p class="muted small center" style="margin:6px 0;">위가 가장 최근</p>
+      <button class="btn primary full" data-act="closeModal">닫기</button>
+    </div>
+  </div>`;
   render();
 }
