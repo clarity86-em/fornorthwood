@@ -2,7 +2,7 @@
 // For Northwood! — UI 레이어 (렌더 + 상호작용)
 // ============================================================
 import * as E from './engine.js';
-import { SUITS, DIFFICULTIES, charById, RANK_LABEL } from './data.js';
+import { SUITS, SUIT_ORDER, DIFFICULTIES, charById, RANK_LABEL } from './data.js';
 
 let state = null;
 const ui = { selDiscard: new Set(), modal: null, modalSlot: null };
@@ -252,6 +252,7 @@ function openAbilityModal(slotIndex) {
   const run = E.getAbilityRun(state);
   const pendingSelect = run && run.pending && run.pending.action === 'select';
   const pendingFief = run && run.pending && run.pending.action === 'selectFief';
+  const pendingSuit = run && run.pending && run.pending.action === 'selectSuit';
   const selectable = run && (run.manual || pendingSelect); // 손패 탭 가능 여부
 
   // 선택 카드 렌더
@@ -287,6 +288,14 @@ function openAbilityModal(slotIndex) {
       return `<button class="btn sm" data-selfief="${pos}">영지 #${pos} · ${SUITS[c.suit].symbol} ${c.name}</button>`;
     }).join('');
     body = `<p class="small"><b>${p.text}</b></p><div class="row wrap" style="margin:8px 0;">${btns}</div>`;
+  } else if (pendingSuit) {
+    const p = run.pending;
+    const btns = SUIT_ORDER.map((s) => {
+      const su = SUITS[s];
+      return `<button class="btn sm" data-selsuit="${s}" style="border-color:${su.color}; background:${su.color}22;">
+        <span class="suitdot" style="background:${su.color}; width:18px; height:18px; font-size:11px;">${su.symbol}</span> ${su.ko}</button>`;
+    }).join('');
+    body = `<p class="small"><b>${p.text}</b></p><div class="row wrap" style="margin:8px 0; gap:8px;">${btns}</div>`;
   } else if (run && run.pending) {
     const p = run.pending;
     const n = ui.selDiscard.size;
@@ -298,12 +307,27 @@ function openAbilityModal(slotIndex) {
     const valid = countOk && cons.ok;
     const hint = !countOk ? `${reqMin === reqMax ? reqMin : reqMin + '~' + reqMax}장 선택`
       : (!cons.ok ? cons.reason : '확인을 누르세요');
+    const deckTop = p.deckTop
+      ? `<div class="row" style="align-items:center; gap:8px; margin:6px 0;">
+           <span class="muted small">덱 맨 위</span>${pcard(p.deckTop)}</div>`
+      : '';
     body = `
       <p class="small"><b>${p.text}</b></p>
+      ${deckTop}
       <p class="muted small">선택: ${n}장 · ${hint}</p>
       <button class="btn primary full" data-confirmstep ${valid ? '' : 'disabled'}>확인</button>`;
   } else {
-    body = `<p class="center" style="color:var(--good);font-weight:700;">능력 완료 ✅</p>`;
+    // 완료 — 정찰 결과/안내가 있으면 표시
+    const info = run && run.info;
+    let extra = '';
+    if (info && info.peek) {
+      extra = `<p class="small" style="margin-top:8px;">정찰 — 덱 맨 위 (왼쪽이 맨 위)</p>
+        <div class="hand">${info.peek.map((c) => pcard(c)).join('')}</div>`;
+    }
+    if (info && info.note) {
+      extra = `<div class="ability-text" style="white-space:pre-line; margin-top:8px;">${info.note}</div>`;
+    }
+    body = `<p class="center" style="color:var(--good);font-weight:700;">능력 완료 ✅</p>${extra}`;
   }
 
   const suit = SUITS[card.suit];
@@ -391,6 +415,11 @@ function bind() {
   // 모달: 영지 선택 (통치자 맞교환)
   r.querySelectorAll('[data-selfief]').forEach((el) => el.addEventListener('click', () => {
     E.resolveAbilityFief(state, Number(el.dataset.selfief));
+    refreshModalHand();
+  }));
+  // 모달: 무늬 호명
+  r.querySelectorAll('[data-selsuit]').forEach((el) => el.addEventListener('click', () => {
+    E.resolveAbilitySuit(state, el.dataset.selsuit);
     refreshModalHand();
   }));
   // 모달: 수동 도구

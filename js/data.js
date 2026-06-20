@@ -80,41 +80,91 @@ function ch(suit, rank, crown, name, ability) {
 
 // 실제 카드 이름/능력은 사진을 받는 대로 채운다.
 const P = '(실제 카드 텍스트 입력 필요)';
-function trio(suit, ko, jack) {
+const PH = { text: P, placeholder: true };
+function trio(suit, ko, ab) {
   return [
-    ch(suit, 'J', false, `${ko} 잭`, jack),
-    ch(suit, 'Q', false, `${ko} Q`, { text: P, placeholder: true }),
-    ch(suit, 'K', false, `${ko} K`, { text: P, placeholder: true }),
-    ch(suit, 'J', true,  `${ko} J`, { text: P, placeholder: true }),
-    ch(suit, 'Q', true,  `${ko} Q`, { text: P, placeholder: true }),
-    ch(suit, 'K', true,  `${ko} K`, { text: P, placeholder: true }),
+    ch(suit, 'J', false, `${ko} 잭`,  ab.jack  || PH),
+    ch(suit, 'Q', false, `${ko} 여왕`, ab.queen || PH),
+    ch(suit, 'K', false, `${ko} 왕`,  ab.king  || PH),
+    ch(suit, 'J', true,  `${ko} 잭`,  PH),
+    ch(suit, 'Q', true,  `${ko} 여왕`, PH),
+    ch(suit, 'K', true,  `${ko} 왕`,  PH),
   ];
 }
 
 export const CHARACTERS = [
-  // 발톱 잭 — "잠시만 참아"
+  // ===== 발톱 (Claws) =====
   ...trio('C', '발톱', {
-    flavor: '잠시만 참아',
-    text: '손에 든 카드가 8장보다 적으면, 8장이 될 때까지 카드를 뽑습니다.',
-    effect: [ { type: 'drawTo', n: 8 } ],
+    jack: {
+      flavor: '잠시만 참아',
+      text: '손에 든 카드가 8장보다 적으면, 8장이 될 때까지 카드를 뽑습니다.',
+      effect: [ { type: 'drawTo', n: 8 } ],
+    },
+    // 발톱 여왕 — 해석 확정 후 effect 연결 (각 더미 1장 vs 셋 중 1장)
+    queen: {
+      flavor: '내 기억엔 말이지',
+      text: '카드 더미, 버려진 카드 더미, 점수 더미에서 맨 위 카드를 뽑습니다.',
+      placeholder: true,
+    },
+    king: {
+      flavor: '자만? 아니 자부심이야',
+      text: '손에서 가장 높은 숫자를 가진 카드(들)를 점수 더미에 놓습니다.',
+      effect: [ { type: 'scoreHighest' } ],
+    },
   }),
-  // 꽃 잭 — "폭탄 투하!"
+  // ===== 꽃 (Flowers) =====
   ...trio('F', '꽃', {
-    flavor: '폭탄 투하!',
-    text: '현재 통치자의 무늬(트럼프)와 일치하는 손패의 모든 카드를 버립니다.',
-    effect: [ { type: 'discardSuit', suit: 'trump' } ],
+    jack: {
+      flavor: '폭탄 투하!',
+      text: '현재 통치자의 무늬(트럼프)와 일치하는 손패의 모든 카드를 버립니다.',
+      effect: [ { type: 'discardSuit', suit: 'trump' } ],
+    },
+    queen: {
+      flavor: '정직한 옹즈림이네',
+      text: '점수 더미의 맨 위 카드를 카드 더미 맨 위에 뒷면으로 놓습니다.',
+      effect: [ { type: 'scoreTopToDeckTop' } ],
+    },
+    king: {
+      flavor: '세상은 흑과 백으로만 이루어져 있지 않아',
+      text: '숫자의 합이 정확히 9가 되는 카드 2장을 버립니다.',
+      effect: [ { type: 'discard', n: 2, constraint: { sumEquals: 9 } } ],
+    },
   }),
-  // 나뭇잎 잭 — "누구나 자기에게 맞는 그릇이 있지" (현재 영지 ↔ ±2칸 중립 영지 통치자 맞교환)
+  // ===== 나뭇잎 (Leaves) =====
   ...trio('L', '나뭇잎', {
-    flavor: '누구나 자기에게 맞는 그릇이 있지',
-    text: '방문 중인 영지의 통치자를, 최대 두 칸 이내의 중립(미방문) 영지 통치자와 맞교환합니다. 현재 트럼프가 새 통치자 무늬로 바뀝니다.',
-    effect: [ { type: 'swapRuler', range: 2 } ],
+    jack: {
+      flavor: '누구나 자기에게 맞는 그릇이 있지',
+      text: '방문 중인 영지의 통치자를, 최대 두 칸 이내의 중립(미방문) 영지 통치자와 맞교환합니다. 현재 트럼프가 새 통치자 무늬로 바뀝니다.',
+      effect: [ { type: 'swapRuler', range: 2 } ],
+    },
+    queen: {
+      flavor: '내 말을 정확히 들거라',
+      text: '방문 중인 영지에 있는 통치자의 능력을 사용합니다.',
+      effect: [ { type: 'useRulerAbility' } ],
+    },
+    king: {
+      flavor: '일어서서 전하라',
+      text: '카드 더미의 맨 위 카드를 봅니다. 그것을 손에 있는 카드 1장과 바꿉니다.',
+      effect: [ { type: 'swapDeckTop' } ],
+    },
   }),
-  // 눈 잭 — "모든 거래는 잭에게 맡겨"
+  // ===== 눈 (Eyes) =====
   ...trio('E', '눈', {
-    flavor: '모든 거래는 잭에게 맡겨',
-    text: '카드 2장을 뽑은 다음, 카드 2장을 버립니다.',
-    effect: [ { type: 'draw', n: 2 }, { type: 'discard', n: 2 } ],
+    jack: {
+      flavor: '모든 거래는 잭에게 맡겨',
+      text: '카드 2장을 뽑은 다음, 카드 2장을 버립니다.',
+      effect: [ { type: 'draw', n: 2 }, { type: 'discard', n: 2 } ],
+    },
+    queen: {
+      flavor: '장기적으로 봐야해',
+      text: '카드 더미의 맨 위 카드 3장을 보고, 같은 순서로 되돌려 놓습니다.',
+      effect: [ { type: 'peek', from: 'deck', n: 3 } ],
+    },
+    king: {
+      flavor: '사각지대를 찾아라',
+      text: '아무 수트 하나를 호명합니다. 카드 2장을 뽑은 다음, 손에서 호명한 수트의 카드를 모두 버립니다.',
+      effect: [ { type: 'chooseSuit' }, { type: 'draw', n: 2 }, { type: 'discardSuit', suit: 'chosen' } ],
+    },
   }),
 ];
 

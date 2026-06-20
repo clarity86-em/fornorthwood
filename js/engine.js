@@ -248,17 +248,98 @@ const STEP_TYPES = {
     },
     describe: (s) => `${s.n ?? 8}장이 될 때까지 뽑기`,
   },
-  // 특정 무늬(트럼프 가능) 카드를 손패에서 전부 버리기 (꽃 잭)
+  // 특정 무늬 카드를 손패에서 전부 버리기 (꽃 잭=trump, 눈 왕=chosen)
   discardSuit: {
     auto: true,
     run(state, step) {
       const v = state.visit;
-      const suit = step.suit === 'trump' ? v.trump : step.suit;
+      const suit = step.suit === 'trump' ? v.trump
+        : step.suit === 'chosen' ? (v.abilityRun.vars && v.abilityRun.vars.suit)
+        : step.suit;
+      if (!suit) return;
       for (let i = v.hand.length - 1; i >= 0; i--) {
         if (v.hand[i].suit === suit) v.discard.push(v.hand.splice(i, 1)[0]);
       }
     },
-    describe: (s) => `${s.suit === 'trump' ? '트럼프' : s.suit} 무늬 전부 버리기`,
+    describe: (s) => `${s.suit === 'trump' ? '트럼프' : s.suit === 'chosen' ? '호명' : s.suit} 무늬 전부 버리기`,
+  },
+  // 무늬 호명 (눈 왕) — 이후 단계가 vars.suit 사용
+  chooseSuit: {
+    auto: false,
+    prompt() { return { action: 'selectSuit', text: '호명할 무늬를 선택' }; },
+    resolveSuit(state, step, suit) {
+      const run = state.visit.abilityRun;
+      run.vars = run.vars || {};
+      run.vars.suit = suit;
+      state.log.push(`무늬 호명: ${SUITS[suit].ko}`);
+    },
+  },
+  // 손에서 가장 높은 값 카드(들)를 점수 더미로 (발톱 왕)
+  scoreHighest: {
+    auto: true,
+    run(state) {
+      const v = state.visit;
+      if (v.hand.length === 0) return;
+      const max = Math.max(...v.hand.map((c) => c.value));
+      for (let i = v.hand.length - 1; i >= 0; i--) {
+        if (v.hand[i].value === max) v.score.push(v.hand.splice(i, 1)[0]);
+      }
+    },
+    describe: () => '가장 높은 값 카드를 점수로',
+  },
+  // 점수 더미 맨 위 카드를 덱 맨 위(뒷면)로 (꽃 여왕)
+  scoreTopToDeckTop: {
+    auto: true,
+    run(state) {
+      const v = state.visit;
+      const c = v.score.pop();
+      if (c) v.deck.unshift(c);
+    },
+    describe: () => '점수 맨 위 카드를 덱 위로',
+  },
+  // 덱 맨 위 n장 정찰 (눈 여왕) — 순서 유지, 정보만
+  peek: {
+    auto: true,
+    run(state, step) {
+      const v = state.visit;
+      v.abilityRun.info = { peek: v.deck.slice(0, step.n ?? 3).map((c) => ({ ...c })) };
+    },
+    describe: (s) => `덱 맨 위 ${s.n ?? 3}장 정찰`,
+  },
+  // 현재 영지 통치자의 능력을 사용 (나뭇잎 여왕)
+  useRulerAbility: {
+    auto: true,
+    run(state) {
+      const run = state.visit.abilityRun;
+      const ruler = charById(state.fiefs[state.visit.fiefPos].rulerId);
+      const reff = ruler.ability.effect;
+      // 무한 재귀 방지: 통치자 능력이 또 useRulerAbility면 실행하지 않음
+      if (reff && !reff.some((s) => s.type === 'useRulerAbility')) {
+        run.steps.splice(run.index + 1, 0, ...reff.map((s) => ({ ...s })));
+        state.log.push(`나뭇잎 여왕: 통치자(${ruler.name}) 능력 사용`);
+      } else {
+        run.info = { note: `통치자(${ruler.name})의 능력: ${ruler.ability.text}\n→ 자동화되지 않은 능력이면 직접 처리하세요.` };
+      }
+    },
+    describe: () => '통치자 능력 사용',
+  },
+  // 덱 맨 위 카드를 손패 1장과 교환 (나뭇잎 왕)
+  swapDeckTop: {
+    auto: false,
+    prompt(step, state) {
+      const top = state.visit.deck[0] || null;
+      return { action: 'select', min: 1, max: 1, then: 'swapDeckTop',
+        deckTop: top, text: '덱 맨 위 카드와 바꿀 손패 1장 선택' };
+    },
+    resolve(state, step, sel) {
+      const v = state.visit;
+      if (v.deck.length === 0 || sel.length === 0) return;
+      const hi = sel[0];
+      const top = v.deck[0];
+      v.deck[0] = v.hand[hi];
+      v.hand[hi] = top;
+      sortHand(v.hand);
+    },
   },
   // 통치자 맞교환 (나뭇잎 잭): 현재 영지 ↔ ±range 이내 중립 영지
   swapRuler: {
@@ -392,6 +473,18 @@ export function resolveAbilityFief(state, fiefPos) {
   if (!run.pending.targets.includes(fiefPos)) return { ok: false };
   const step = run.steps[run.index];
   STEP_TYPES[step.type].resolveFief(state, step, fiefPos);
+  run.index++;
+  run.pending = null;
+  advanceAbilityRun(state);
+  return { ok: true };
+}
+
+// 무늬 선택이 필요한 단계 처리 (chooseSuit)
+export function resolveAbilitySuit(state, suit) {
+  const run = state.visit.abilityRun;
+  if (!run || !run.pending || run.pending.action !== 'selectSuit') return { ok: false };
+  const step = run.steps[run.index];
+  STEP_TYPES[step.type].resolveSuit(state, step, suit);
   run.index++;
   run.pending = null;
   advanceAbilityRun(state);
